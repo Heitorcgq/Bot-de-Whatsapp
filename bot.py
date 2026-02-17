@@ -20,9 +20,11 @@ if not api_key_groq or not url_redis:
 client = Groq(api_key=api_key_groq)
 
 try:
-    db = redis.from_url(url_redis, decode_responses=True)
+    db = redis.from_url(url_redis, decode_responses=True, ssl_cert_reqs=None)
+    print("Redis ping:", db.ping())
 except Exception as e:
     print(f"Erro Crítico no Redis: {e}")
+
 
 cardapio_pizzaria = """
 CARDÁPIO ATUALIZADO:
