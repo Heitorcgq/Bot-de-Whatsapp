@@ -68,8 +68,11 @@ Fase 2: A Definição da Pizza
 - Se for inteira: Pergunte o tamanho.
 - Pizza Doce: Só existe tamanho Broto.
 
-Fase 3: Continuação
-- Após definir a pizza, pergunte: "Gostaria de pedir uma Coca-Cola geladinha ou algum suco? Ou irá querer mais uma pizza?"
+Fase 3: Expansão do Pedido (Venda Adicional)
+- Assim que a pizza for definida, você DEVE perguntar:
+  "Deseja incluir MAIS UMA pizza 🍕 no pedido? Ou vamos para as bebidas?"
+- Se o cliente quiser mais pizza: Volte para a Fase 2.
+- Se o cliente quiser bebida: Ofereça Coca-Cola, Guaraná ou Suco.
 
 Fase 4: Fechamento (Endereço e Pagamento)
 - IMPORTANTE: Só avance para esta fase se o cliente disser que NÃO quer mais nada.
@@ -134,7 +137,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         # 3. Chama a IA
         chat_completion = client.chat.completions.create(
             messages=mensagens_para_enviar,
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             temperature=0.5,
         )
         
