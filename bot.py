@@ -6,6 +6,7 @@ from groq import Groq
 from twilio.twiml.messaging_response import MessagingResponse
 from dotenv import load_dotenv
 
+# Carrega as variáveis do arquivo .env
 load_dotenv()
 
 app = Flask(__name__)
@@ -14,16 +15,18 @@ app = Flask(__name__)
 api_key_groq = os.getenv("GROQ_API_KEY")
 url_redis = os.getenv("REDIS_URL")
 
+# Verificação de segurança das chaves
 if not api_key_groq or not url_redis:
     raise ValueError("ERRO: Faltam chaves no arquivo .env!")
 
 client = Groq(api_key=api_key_groq)
 
+# Conexão com Redis
 try:
     db = redis.from_url(url_redis, decode_responses=True, ssl_cert_reqs=None)
     print("Redis ping:", db.ping())
-    print("GROQ:", api_key_groq)
-    print("REDIS:", url_redis)
+    # Ocultando chaves nos logs por segurança
+    print("Conexão Redis e Groq estabelecida com sucesso.")
 
 except Exception as e:
     print(f"Erro Crítico no Redis: {e}")
@@ -156,6 +159,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
     except Exception as e:
         print("ERRO GROQ:", e)
     return "Desculpe, tivemos um erro interno."
+
 @app.route("/bot", methods=['POST'])
 def bot():
     msg_recebida = request.values.get('Body', '').strip()
@@ -166,7 +170,8 @@ def bot():
         db.delete(f"chat:{numero_remetente}")
         resp = MessagingResponse()
         resp.message("Memória apagada! Começando do zero.")
-        return str(resp)
+        # Correção aqui também: deve retornar XML
+        return Response(str(resp), mimetype="application/xml")
 
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
 
