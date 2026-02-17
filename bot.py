@@ -151,8 +151,8 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         return resposta_ia
 
     except Exception as e:
-        return f"Erro no sistema: {str(e)}"
-
+        print("ERRO GROQ:", e)
+    return "Desculpe, tivemos um erro interno."
 @app.route("/bot", methods=['POST'])
 def bot():
     msg_recebida = request.values.get('Body', '').strip()
