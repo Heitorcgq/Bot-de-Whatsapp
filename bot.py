@@ -1,6 +1,6 @@
 import os
 import json
-import redis  # A nova biblioteca
+import redis
 from flask import Flask, request
 from groq import Groq
 from twilio.twiml.messaging_response import MessagingResponse
@@ -42,7 +42,7 @@ CARDÁPIO ATUALIZADO:
 - Suco Prats Laranja (R$ 18,00)
 """
 
-# --- O CÉREBRO DO LUIGI (CORRIGIDO) ---
+# --- O CÉREBRO DO LUIGI  ---
 prompt_sistema = f"""
 Você é o 'Luigi', o atendente virtual experiente da 'Pizzaria Bella Napoli' 🍕.
 Sua missão é guiar o cliente desde a escolha até o pagamento de forma fluida.
@@ -117,9 +117,6 @@ def gerenciar_memoria(numero_telefone, nova_mensagem=None, papel="user"):
         historico.append({"role": papel, "content": nova_mensagem})
         
         # 3. Salva de volta no Redis
-        # json.dumps: Transforma a lista Python em Texto para o Redis guardar
-        # ex=3600: Define que essa memória expira em 3600 segundos (1 hora)
-        # Isso é ÓTIMO! Se o cliente voltar amanhã, o bot já esqueceu (começa do zero).
         db.set(chave_redis, json.dumps(historico), ex=3600)
     
     return historico
