@@ -173,12 +173,13 @@ def bot():
     if not resposta:
         resposta = "Desculpe, estou com instabilidade agora. Pode repetir?"
 
-    
     resp = MessagingResponse()
     print("Resposta enviada:", resposta)
     resp.message(resposta[:1500])
 
-    return str(resp)
+
+    return str(resp), 200, {'Content-Type': 'application/xml'}
 
 if __name__ == "__main__":
-    app.run()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
