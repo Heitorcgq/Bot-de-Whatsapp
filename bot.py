@@ -155,10 +155,20 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
     return "Desculpe, tivemos um erro interno."
 @app.route("/bot", methods=['POST'])
 def bot():
-    print("Recebi mensagem do Twilio")
+    msg_recebida = request.values.get('Body', '').strip()
+    numero_remetente = request.values.get('From', '')
+    
+    # Comando de Reset Manual
+    if msg_recebida.lower() == "/reset":
+        db.delete(f"chat:{numero_remetente}")
+        resp = MessagingResponse()
+        resp.message("Memória apagada! Começando do zero.")
+        return str(resp)
 
+    resposta = obter_resposta_ia(msg_recebida, numero_remetente)
+    
     resp = MessagingResponse()
-    resp.message("🔥 BOT ONLINE 🔥")
+    resp.message(resposta)
     return str(resp)
 
 if __name__ == "__main__":
