@@ -22,6 +22,9 @@ client = Groq(api_key=api_key_groq)
 try:
     db = redis.from_url(url_redis, decode_responses=True, ssl_cert_reqs=None)
     print("Redis ping:", db.ping())
+    print("GROQ:", api_key_groq)
+    print("REDIS:", url_redis)
+
 except Exception as e:
     print(f"Erro Crítico no Redis: {e}")
 
