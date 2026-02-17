@@ -1,7 +1,7 @@
 import os
 import json
 import redis
-from flask import Flask, request
+from flask import Flask, request, Response
 from groq import Groq
 from twilio.twiml.messaging_response import MessagingResponse
 from dotenv import load_dotenv
@@ -175,10 +175,13 @@ def bot():
 
     resp = MessagingResponse()
     print("Resposta enviada:", resposta)
+    
+    # Limita o tamanho para evitar erro de limite do WhatsApp (1600 caracteres)
     resp.message(resposta[:1500])
 
-
-    return str(resp), 200, {'Content-Type': 'application/xml'}
+    # --- AQUI ESTÁ O PULO DO GATO ---
+    # Forçamos o Flask a dizer: "Isso é um XML, Twilio!"
+    return Response(str(resp), mimetype="application/xml")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
