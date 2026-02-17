@@ -166,9 +166,15 @@ def bot():
         return str(resp)
 
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
+
+    if not resposta:
+        resposta = "Desculpe, estou com instabilidade agora. Pode repetir?"
+
     
     resp = MessagingResponse()
+    print("Resposta enviada:", resposta)
     resp.message(resposta)
+
     return str(resp)
 
 if __name__ == "__main__":
