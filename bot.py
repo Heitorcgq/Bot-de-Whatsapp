@@ -173,9 +173,9 @@ def bot():
     
     resp = MessagingResponse()
     print("Resposta enviada:", resposta)
-    resp.message(resposta)
+    resp.message(resposta[:1500])
 
     return str(resp)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run()
