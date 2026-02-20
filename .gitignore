@@ -1,4 +1,15 @@
+# Variáveis de ambiente (Segurança)
 .env
+
+# Chaves do Google (Segurança)
+credenciais.json
+*.json
+
+# Arquivos do Python e Ambientes Virtuais
 __pycache__/
 venv/
+env/
+*.pyc
+
+# Arquivos de Sistema
 .DS_Store

@@ -1,8 +1,13 @@
 import os
 import json
 import redis
+import re
+import gspread
+from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask, request, Response
 from groq import Groq
+from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 from dotenv import load_dotenv
 
@@ -14,22 +19,53 @@ app = Flask(__name__)
 # --- CONFIGURAÇÕES ---
 api_key_groq = os.getenv("GROQ_API_KEY")
 url_redis = os.getenv("REDIS_URL")
+twilio_sid = os.getenv("TWILIO_ACCOUNT_SID")
+twilio_token = os.getenv("TWILIO_AUTH_TOKEN")
 
-# Verificação de segurança das chaves
+# Verificação de segurança das chaves básicas
 if not api_key_groq or not url_redis:
-    raise ValueError("ERRO: Faltam chaves no arquivo .env!")
+    raise ValueError("ERRO: Faltam chaves do Groq ou Redis no arquivo .env!")
 
-client = Groq(api_key=api_key_groq)
+client_groq = Groq(api_key=api_key_groq)
+
+# Cliente do Twilio para Envio Ativo (Evita timeout de 15s)
+if twilio_sid and twilio_token:
+    client_twilio = Client(twilio_sid, twilio_token)
+else:
+    client_twilio = None
+    print("AVISO: Chaves do Twilio não encontradas. O envio ativo pode falhar.")
 
 # Conexão com Redis
 try:
     db = redis.from_url(url_redis, decode_responses=True, ssl_cert_reqs=None)
     print("Redis ping:", db.ping())
-    # Ocultando chaves nos logs por segurança
     print("Conexão Redis e Groq estabelecida com sucesso.")
-
 except Exception as e:
     print(f"Erro Crítico no Redis: {e}")
+
+# --- CONFIGURAÇÃO DA PLANILHA (GOOGLE SHEETS) SEGURO PARA NUVEM ---
+try:
+    escopo = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    
+    # Busca o texto do JSON salvo nas variáveis do Railway
+    google_creds_texto = os.getenv("GOOGLE_CREDENTIALS")
+    
+    if google_creds_texto:
+        # Transforma o texto de volta em um dicionário (JSON)
+        credenciais_dict = json.loads(google_creds_texto)
+        credenciais = ServiceAccountCredentials.from_json_keyfile_dict(credenciais_dict, escopo)
+        cliente_sheets = gspread.authorize(credenciais)
+        
+        # ATENÇÃO: Coloque aqui o nome EXATO da sua planilha no Google Drive
+        planilha_pedidos = cliente_sheets.open("Planilha bot").sheet1
+        print("✅ Conexão com Google Sheets estabelecida com sucesso.")
+    else:
+        planilha_pedidos = None
+        print("AVISO: Variável GOOGLE_CREDENTIALS não encontrada no ambiente.")
+
+except Exception as e:
+    planilha_pedidos = None
+    print("❌ Erro ao conectar com Google Sheets:", e)
 
 
 cardapio_pizzaria = """
@@ -98,60 +134,52 @@ Fase 5: Resumo e Confirmação
   Endereço de Entrega: [Insira o endereço que o cliente informou]
 - Pergunte: "Tudo certo? Posso mandar preparar?"
 
+🛑 REGRA NOVA E OBRIGATÓRIA PARA A COZINHA (JSON):
+Quando o cliente CONFIRMAR que o pedido está correto (ex: "sim, pode mandar", "tudo certo"), você deve agradecer, avisar que o pedido foi para a cozinha e, NO FINAL DA SUA MENSAGEM, adicionar EXATAMENTE este bloco de texto:
+
+[JSON_PEDIDO]
+{{
+  "pedido": "Resumo dos itens e tamanhos",
+  "endereco": "Endereço completo",
+  "pagamento": "Forma escolhida",
+  "total": "Valor total com taxa"
+}}
+[/JSON_PEDIDO]
+
+Nunca mostre esse bloco JSON antes do cliente confirmar o pedido.
 ⚠️ REGRAS DE OURO:
-1. NUNCA invente endereços (como "Rua Exemplo"). Se não souber o endereço, pergunte ao cliente.
-2. NUNCA invente códigos Pix aleatórios ou use placeholders como "[insira código]". Use a chave que está nos DADOS OPERACIONAIS.
-3. Se o cliente falar só "Quero pizza", pergunte o sabor.
-4. Nunca assuma o tamanho da pizza, sempre pergunte.
+1. NUNCA invente endereços. Se não souber o endereço, pergunte ao cliente.
+2. NUNCA invente códigos Pix aleatórios. Use a chave dos DADOS OPERACIONAIS.
+3. Nunca assuma o tamanho da pizza, sempre pergunte.
 """
 
 def gerenciar_memoria(numero_telefone, nova_mensagem=None, papel="user"):
-    """
-    Função inteligente que cuida do Redis.
-    Ela busca o histórico, atualiza e salva com validade de 1 hora.
-    """
-    # CHAVE ÚNICA: O número do telefone é a chave do cofre no Redis
     chave_redis = f"chat:{numero_telefone}"
-    
-    # 1. Tenta pegar o histórico antigo no Redis
     historico_json = db.get(chave_redis)
     
     if historico_json:
-        # Se existe, transforma de Texto para Lista Python
         historico = json.loads(historico_json)
     else:
-        # Se não existe (primeira vez), cria lista vazia
         historico = []
 
-    # 2. Se tiver mensagem nova para adicionar
     if nova_mensagem:
         historico.append({"role": papel, "content": nova_mensagem})
-        
-        # 3. Salva de volta no Redis
         db.set(chave_redis, json.dumps(historico), ex=3600)
     
     return historico
 
 def obter_resposta_ia(mensagem_usuario, numero_telefone):
     try:
-        # 1. Adiciona msg do usuário na memória do Redis
         historico_atualizado = gerenciar_memoria(numero_telefone, mensagem_usuario, "user")
+        mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_atualizado
 
-        # 2. Monta o pacote para a IA
-        mensagens_para_enviar = [
-            {"role": "system", "content": prompt_sistema}
-        ] + historico_atualizado
-
-        # 3. Chama a IA
-        chat_completion = client.chat.completions.create(
+        chat_completion = client_groq.chat.completions.create(
             messages=mensagens_para_enviar,
             model="llama-3.1-8b-instant",
             temperature=0.5,
         )
         
         resposta_ia = chat_completion.choices[0].message.content
-        
-        # 4. Salva a resposta da IA na memória do Redis
         gerenciar_memoria(numero_telefone, resposta_ia, "assistant")
         
         return resposta_ia
@@ -163,30 +191,69 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
 @app.route("/bot", methods=['POST'])
 def bot():
     msg_recebida = request.values.get('Body', '').strip()
-    numero_remetente = request.values.get('From', '')
+    numero_remetente = request.values.get('From', '') # Cliente
+    numero_bot = request.values.get('To', '')         # Twilio/Pizzaria
     
     # Comando de Reset Manual
     if msg_recebida.lower() == "/reset":
         db.delete(f"chat:{numero_remetente}")
-        resp = MessagingResponse()
-        resp.message("Memória apagada! Começando do zero.")
-        # Correção aqui também: deve retornar XML
-        return Response(str(resp), mimetype="application/xml")
+        if client_twilio:
+            client_twilio.messages.create(body="Memória apagada! Começando do zero.", from_=numero_bot, to=numero_remetente)
+        return Response(str(MessagingResponse()), mimetype="application/xml")
 
+    # 1. Pega a resposta da IA
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
 
     if not resposta:
         resposta = "Desculpe, estou com instabilidade agora. Pode repetir?"
 
-    resp = MessagingResponse()
-    print("Resposta enviada:", resposta)
-    
-    # Limita o tamanho para evitar erro de limite do WhatsApp (1600 caracteres)
-    resp.message(resposta[:1500])
+    # 2. Verifica se a IA gerou o JSON de Fechamento de Pedido
+    if "[JSON_PEDIDO]" in resposta:
+        try:
+            # Extrai o JSON do meio do texto
+            texto_json = re.search(r'\[JSON_PEDIDO\](.*?)\[/JSON_PEDIDO\]', resposta, re.DOTALL).group(1)
+            dados_pedido = json.loads(texto_json.strip())
+            
+            # Se a planilha estiver conectada, salva os dados
+            if planilha_pedidos:
+                agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                nova_linha = [
+                    agora, 
+                    numero_remetente.replace("whatsapp:", ""), 
+                    dados_pedido.get("pedido", ""), 
+                    dados_pedido.get("endereco", ""), 
+                    dados_pedido.get("pagamento", ""), 
+                    dados_pedido.get("total", "")
+                ]
+                planilha_pedidos.append_row(nova_linha)
+                print("✅ Sucesso: Pedido salvo na planilha do Google Sheets!")
 
-    # --- AQUI ESTÁ O PULO DO GATO ---
-    # Forçamos o Flask a dizer: "Isso é um XML, Twilio!"
-    return Response(str(resp), mimetype="application/xml")
+            # Limpa o bloco JSON da resposta para o cliente não ver
+            resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
+
+        except Exception as e:
+            print("❌ Erro ao tentar ler o JSON ou salvar na planilha:", e)
+
+    print("Resposta enviada:", resposta)
+
+    # 3. ENVIO ATIVO (Evita o Timeout do Twilio caso o Google Sheets demore)
+    if client_twilio:
+        try:
+            client_twilio.messages.create(
+                body=resposta[:1500],
+                from_=numero_bot,
+                to=numero_remetente
+            )
+        except Exception as e:
+            print(f"ERRO API TWILIO: {e}")
+    else:
+        # Fallback de segurança se as chaves do Twilio não estiverem configuradas
+        resp = MessagingResponse()
+        resp.message(resposta[:1500])
+        return Response(str(resp), mimetype="application/xml")
+
+    # Retorna XML vazio instantaneamente para fechar a conexão do Webhook
+    return Response(str(MessagingResponse()), mimetype="application/xml")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
