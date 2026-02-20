@@ -1,4 +1,4 @@
-# 🍕 Luigi: Atendente Virtual com IA para WhatsApp
+# Atendente Virtual com IA para WhatsApp
 
 Um sistema completo de automação de atendimento e vendas para pizzarias e delivery, operando 100% via WhatsApp. Diferente de chatbots tradicionais de "árvore de decisão", este bot utiliza Inteligência Artificial Generativa para conduzir uma conversa fluida, natural e inteligente com o cliente.
 
