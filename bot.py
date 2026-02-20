@@ -134,19 +134,22 @@ Fase 5: Resumo e Confirmação
   Endereço de Entrega: [Insira o endereço que o cliente informou]
 - Pergunte: "Tudo certo? Posso mandar preparar?"
 
-🛑 REGRA NOVA E OBRIGATÓRIA PARA A COZINHA (JSON):
-Quando o cliente CONFIRMAR que o pedido está correto (ex: "sim, pode mandar", "tudo certo"), você deve agradecer, avisar que o pedido foi para a cozinha e, NO FINAL DA SUA MENSAGEM, adicionar EXATAMENTE este bloco de texto:
+🛑 REGRA CRÍTICA DE SISTEMA (JSON OBRIGATÓRIO):
+IMEDIATAMENTE após o cliente confirmar o pedido (dizendo "sim", "ok", "pode mandar"), você DEVE gerar um bloco de código oculto no final da sua resposta.
+Não pergunte mais nada. Apenas agradeça e gere o JSON.
 
+O formato OBRIGATÓRIO é este:
 [JSON_PEDIDO]
 {{
-  "pedido": "Resumo dos itens e tamanhos",
-  "endereco": "Endereço completo",
-  "pagamento": "Forma escolhida",
-  "total": "Valor total com taxa"
+  "pedido": "Resumo detalhado (ex: 1x Pizza Calabresa G)",
+  "endereco": "Rua X, Bairro Y",
+  "pagamento": "Pix/Cartão/Dinheiro",
+  "total": "R$ 00,00"
 }}
 [/JSON_PEDIDO]
 
 Nunca mostre esse bloco JSON antes do cliente confirmar o pedido.
+
 ⚠️ REGRAS DE OURO:
 1. NUNCA invente endereços. Se não souber o endereço, pergunte ao cliente.
 2. NUNCA invente códigos Pix aleatórios. Use a chave dos DADOS OPERACIONAIS.
@@ -171,12 +174,23 @@ def gerenciar_memoria(numero_telefone, nova_mensagem=None, papel="user"):
 def obter_resposta_ia(mensagem_usuario, numero_telefone):
     try:
         historico_atualizado = gerenciar_memoria(numero_telefone, mensagem_usuario, "user")
+        
+        # TRUQUE NOVO: Se o usuário confirmou, injetamos uma ordem de sistema
         mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_atualizado
+        
+        # Verifica se é uma confirmação de pedido para forçar o JSON
+        palavras_confirmacao = ["sim", "pode", "tá bom", "ok", "pode mandar", "tudo certo", "confirmo"]
+        if any(p in mensagem_usuario.lower() for p in palavras_confirmacao):
+            # Adiciona uma mensagem de sistema "falsa" no final para obrigar o bot a gerar o JSON
+            mensagens_para_enviar.append({
+                "role": "system", 
+                "content": "O cliente confirmou o pedido. FINALIZE AGORA. Agradeça e GERE O BLOCO [JSON_PEDIDO] OBRIGATORIAMENTE."
+            })
 
         chat_completion = client_groq.chat.completions.create(
             messages=mensagens_para_enviar,
-            model="llama-3.1-8b-instant",
-            temperature=0.5,
+            model="llama-3.1-8b-instant", # Modelo rápido
+            temperature=0.3, # Baixei a temperatura para ele ser mais "robô" e obedecer regras
         )
         
         resposta_ia = chat_completion.choices[0].message.content
