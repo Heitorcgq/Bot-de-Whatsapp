@@ -44,4 +44,4 @@ git clone [https://github.com/Heitorcgq/Bot-de-Whatsapp.git](https://github.com/
 cd Bot-de-Whatsapp
 ```
 
-Desenvolvido por Heitor - Doc Intelligence RAG
+Desenvolvido por Heitor - Bot de Whatsapp
