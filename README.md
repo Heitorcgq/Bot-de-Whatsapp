@@ -42,3 +42,6 @@ Clone o repositório:
 ```bash
 git clone [https://github.com/Heitorcgq/Bot-de-Whatsapp.git](https://github.com/Heitorcgq/Bot-de-Whatsapp.git)
 cd Bot-de-Whatsapp
+```
+
+Desenvolvido por Heitor - Doc Intelligence RAG
