@@ -125,20 +125,16 @@ Fase 4: Fechamento (Endereço e Pagamento)
   - Se for Pix: Envie a CHAVE PIX que está nos Dados Operacionais acima.
   - Se for Dinheiro: Pergunte do troco.
 
-Fase 5: Resumo e Confirmação
-- Só envie o resumo se você JÁ TIVER o endereço e a forma de pagamento definidos.
-- Resumo:
-  [Lista de Itens]
-  Entrega: R$ 8,00
-  TOTAL: R$ XX,XX
-  Endereço de Entrega: [Insira o endereço que o cliente informou]
-- Pergunte: "Tudo certo? Posso mandar preparar?"
+Fase 5: Resumo e Aguardar Confirmação
+- Só envie o resumo se tiver endereço e pagamento definidos.
+- Resumo: Itens, Entrega, TOTAL, Endereço e Pagamento.
+- Pergunte EXATAMENTE: "Tudo certo? Posso mandar preparar?"
+- 🛑 REGRA CRÍTICA: NESTA FASE É ESTRITAMENTE PROIBIDO GERAR O BLOCO [JSON_PEDIDO]. VOCÊ DEVE APENAS ESPERAR O CLIENTE RESPONDER "SIM".
 
-🛑 REGRA CRÍTICA DE SISTEMA (JSON OBRIGATÓRIO):
-IMEDIATAMENTE após o cliente confirmar o pedido (dizendo "sim", "ok", "pode mandar"), você DEVE gerar um bloco de código oculto no final da sua resposta.
-Não pergunte mais nada. Apenas agradeça e gere o JSON.
+Fase 6: Fechamento Final e JSON (A Cozinha)
+- APENAS QUANDO o cliente confirmar o resumo da Fase 5 (ex: "sim", "pode mandar"), você agradece e encerra o atendimento.
+- É EXCLUSIVAMENTE NESTA MENSAGEM DE DESPEDIDA que você deve adicionar o bloco de texto exato abaixo:
 
-O formato OBRIGATÓRIO é este:
 [JSON_PEDIDO]
 {{
   "pedido": "Resumo detalhado (ex: 1x Pizza Calabresa G)",
@@ -241,6 +237,12 @@ def bot():
                 ]
                 planilha_pedidos.append_row(nova_linha)
                 print("✅ Sucesso: Pedido salvo na planilha do Google Sheets!")
+
+                db.delete(f"chat:{numero_remetente}")
+                print("🧹 Memória do cliente limpa para o próximo pedido futuro.")
+
+            # Limpa o bloco JSON da resposta para o cliente não ver
+            resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
 
             # Limpa o bloco JSON da resposta para o cliente não ver
             resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
