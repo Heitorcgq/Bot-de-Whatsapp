@@ -112,7 +112,7 @@ CARDÁPIO ATUALIZADO:
 - Água (R$ 4,00)
 """
 
-# --- O CÉREBRO DO LUIGI  ---
+# --- O CÉREBRO ---
 prompt_sistema = f"""
 # ==========================================
 # IDENTIDADE DO AGENTE
@@ -285,7 +285,10 @@ Pagamento:
 Pergunta final: "Tudo certo? Posso mandar preparar? 🍔🔥"
 
 ETAPA 7 — FINALIZAÇÃO
-Após o cliente dizer "sim" para o resumo, gere OBRIGATORIAMENTE o bloco abaixo e nada mais:
+
+Após o cliente dizer "sim" para o resumo, envie para o cliente uma Mensagem de Agradecimento.
+e gere OBRIGATORIAMENTE o bloco abaixo e NÃO envie o Bloco gerado para o cliente.
+
 
 [JSON_PEDIDO]
 {{
@@ -368,7 +371,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
     try:
         historico_atualizado = gerenciar_memoria(numero_telefone, mensagem_usuario, "user")
         
-        # TRUQUE NOVO: Se o usuário confirmou, injetamos uma ordem de sistema
+        # Se o usuário confirmou, injetamos uma ordem de sistema
         mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_atualizado
         
         # Verifica se é uma confirmação de pedido para forçar o JSON
@@ -383,7 +386,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         chat_completion = client_groq.chat.completions.create(
             messages=mensagens_para_enviar,
             model="llama-3.1-8b-instant", # Modelo rápido
-            temperature=0.3, # Baixei a temperatura para ele ser mais "robô" e obedecer regras
+            temperature=0.3, # Temperatura baixa para ele ser mais "robô" e obedecer regras
         )
         
         resposta_ia = chat_completion.choices[0].message.content
@@ -400,7 +403,7 @@ def salvar_no_sheets(dados, numero):
         # Tenta salvar direto. Se a variável global estiver ativa, vai funcionar.
         planilha = planilha_pedidos
         
-        # Se por acaso a variável global se perdeu ou precisa reconectar (lógica simplificada)
+        # Se por acaso a variável global se perdeu ou precisa reconectar
         if not planilha:
             raise Exception("Planilha desconectada")
 
@@ -417,7 +420,6 @@ def salvar_no_sheets(dados, numero):
         return True
     except Exception as e:
         print(f"⚠️ Erro ao salvar (Tentativa 1): {e}")
-        # Aqui você poderia implementar uma lógica de reconexão se fosse crítico
         return False
 
 @app.route("/bot", methods=['POST'])
@@ -426,7 +428,7 @@ def bot():
     numero_remetente = request.values.get('From', '')
     numero_bot = request.values.get('To', '')
 
-    # --- LÓGICA DE ESTADO (MANTIDA) ---
+    # --- LÓGICA DE ESTADO ---
     estado_cliente = db.get(f"estado:{numero_remetente}")
 
     if estado_cliente and estado_cliente.decode() == "finalizado":
@@ -470,7 +472,7 @@ def bot():
             else:
                 print("❌ FALHA AO SALVAR NA PLANILHA (O pedido existe no chat, mas não no sheets)")
 
-            # Limpa o JSON da resposta para o usuário (CORRIGIDO: Apenas uma vez)
+            # Limpa o JSON da resposta para o usuário
             resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
 
         except Exception as e:
