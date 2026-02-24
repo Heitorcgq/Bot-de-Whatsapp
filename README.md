@@ -1,6 +1,6 @@
-# 🍕 Luigi: Atendente Virtual com IA para WhatsApp
+# Atendente Virtual com IA para WhatsApp
 
-Um sistema completo de automação de atendimento e vendas para pizzarias e delivery, operando 100% via WhatsApp. Diferente de chatbots tradicionais de "árvore de decisão", este bot utiliza Inteligência Artificial Generativa para conduzir uma conversa fluida, natural e inteligente com o cliente.
+Um sistema completo de automação de atendimento e vendas para pizzarias, lanchonetes, delivery, etc e operando 100% via WhatsApp. Diferente de chatbots tradicionais de "árvore de decisão", este bot utiliza Inteligência Artificial Generativa para conduzir uma conversa fluida, natural e inteligente com o cliente.
 
 ## 🚀 O Problema Resolvido
 Donos de delivery perdem muito tempo (e pedidos) com o atendimento manual no WhatsApp, especialmente em horários de pico. Este MVP (Produto Mínimo Viável) automatiza todo o funil de vendas:
@@ -42,3 +42,6 @@ Clone o repositório:
 ```bash
 git clone [https://github.com/Heitorcgq/Bot-de-Whatsapp.git](https://github.com/Heitorcgq/Bot-de-Whatsapp.git)
 cd Bot-de-Whatsapp
+```
+
+Desenvolvido por Heitor - Bot de Whatsapp
