@@ -446,61 +446,90 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         print("ERRO GROQ:", e)
     return "Desculpe, tivemos um erro interno."
 
+def salvar_no_sheets(dados, numero):
+    try:
+        # Tenta salvar direto. Se a variável global estiver ativa, vai funcionar.
+        planilha = planilha_pedidos
+        
+        # Se por acaso a variável global se perdeu ou precisa reconectar (lógica simplificada)
+        if not planilha:
+            raise Exception("Planilha desconectada")
+
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        nova_linha = [
+            agora, 
+            numero.replace("whatsapp:", ""), 
+            dados.get("pedido", ""), 
+            dados.get("endereco", ""), 
+            dados.get("pagamento", ""), 
+            dados.get("total", "")
+        ]
+        planilha.append_row(nova_linha)
+        return True
+    except Exception as e:
+        print(f"⚠️ Erro ao salvar (Tentativa 1): {e}")
+        # Aqui você poderia implementar uma lógica de reconexão se fosse crítico
+        return False
+
 @app.route("/bot", methods=['POST'])
 def bot():
     msg_recebida = request.values.get('Body', '').strip()
-    numero_remetente = request.values.get('From', '') # Cliente
-    numero_bot = request.values.get('To', '')         # Twilio/Pizzaria
-    
-    # Comando de Reset Manual
+    numero_remetente = request.values.get('From', '')
+    numero_bot = request.values.get('To', '')
+
+    # --- LÓGICA DE ESTADO (MANTIDA) ---
+    estado_cliente = db.get(f"estado:{numero_remetente}")
+
+    if estado_cliente and estado_cliente.decode() == "finalizado":
+        if msg_recebida.lower() in ["sim", "ok", "valeu", "obrigado", "blz"]:
+            if client_twilio:
+                client_twilio.messages.create(
+                    body="Seu pedido está sendo preparado com carinho! 🍔🔥",
+                    from_=numero_bot,
+                    to=numero_remetente
+                )
+            return Response(str(MessagingResponse()), mimetype="application/xml")
+        
+        # Reset automático se o cliente falar outra coisa
+        db.delete(f"estado:{numero_remetente}")
+        db.delete(f"chat:{numero_remetente}")
+
     if msg_recebida.lower() == "/reset":
         db.delete(f"chat:{numero_remetente}")
+        db.delete(f"estado:{numero_remetente}")
+        msg_reset = "Memória apagada! Pode começar de novo."
         if client_twilio:
-            client_twilio.messages.create(body="Memória apagada! Começando do zero.", from_=numero_bot, to=numero_remetente)
+            client_twilio.messages.create(body=msg_reset, from_=numero_bot, to=numero_remetente)
         return Response(str(MessagingResponse()), mimetype="application/xml")
 
-    # 1. Pega a resposta da IA
+    # --- CHAMADA IA ---
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
 
-    if not resposta:
-        resposta = "Desculpe, estou com instabilidade agora. Pode repetir?"
-
-    # 2. Verifica se a IA gerou o JSON de Fechamento de Pedido
+    # --- PROCESSAMENTO DO JSON ---
     if "[JSON_PEDIDO]" in resposta:
         try:
-            # Extrai o JSON do meio do texto
             texto_json = re.search(r'\[JSON_PEDIDO\](.*?)\[/JSON_PEDIDO\]', resposta, re.DOTALL).group(1)
             dados_pedido = json.loads(texto_json.strip())
             
-            # Se a planilha estiver conectada, salva os dados
-            if planilha_pedidos:
-                agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                nova_linha = [
-                    agora, 
-                    numero_remetente.replace("whatsapp:", ""), 
-                    dados_pedido.get("pedido", ""), 
-                    dados_pedido.get("endereco", ""), 
-                    dados_pedido.get("pagamento", ""), 
-                    dados_pedido.get("total", "")
-                ]
-                planilha_pedidos.append_row(nova_linha)
-                print("✅ Sucesso: Pedido salvo na planilha do Google Sheets!")
+            # Tenta salvar usando a função auxiliar
+            sucesso_sheets = salvar_no_sheets(dados_pedido, numero_remetente)
+            
+            if sucesso_sheets:
+                print("✅ Pedido salvo no Google Sheets!")
+                # Só define como finalizado se salvou com sucesso
+                db.set(f"estado:{numero_remetente}", "finalizado", ex=3600)
+            else:
+                print("❌ FALHA AO SALVAR NA PLANILHA (O pedido existe no chat, mas não no sheets)")
 
-                db.delete(f"chat:{numero_remetente}")
-                print("🧹 Memória do cliente limpa para o próximo pedido futuro.")
-
-            # Limpa o bloco JSON da resposta para o cliente não ver
-            resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
-
-            # Limpa o bloco JSON da resposta para o cliente não ver
+            # Limpa o JSON da resposta para o usuário (CORRIGIDO: Apenas uma vez)
             resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
 
         except Exception as e:
-            print("❌ Erro ao tentar ler o JSON ou salvar na planilha:", e)
+            print("❌ Erro crítico no processamento do JSON:", e)
 
-    print("Resposta enviada:", resposta)
+    # --- ENVIO FINAL ---
+    print(f"🤖 Bot para {numero_remetente}: {resposta[:50]}...")
 
-    # 3. ENVIO ATIVO (Evita o Timeout do Twilio caso o Google Sheets demore)
     if client_twilio:
         try:
             client_twilio.messages.create(
@@ -509,14 +538,16 @@ def bot():
                 to=numero_remetente
             )
         except Exception as e:
-            print(f"ERRO API TWILIO: {e}")
+            print(f"❌ Erro Twilio API: {e}")
+            # Fallback para XML se a API falhar
+            resp = MessagingResponse()
+            resp.message(resposta[:1500])
+            return Response(str(resp), mimetype="application/xml")
     else:
-        # Fallback de segurança se as chaves do Twilio não estiverem configuradas
         resp = MessagingResponse()
         resp.message(resposta[:1500])
         return Response(str(resp), mimetype="application/xml")
 
-    # Retorna XML vazio instantaneamente para fechar a conexão do Webhook
     return Response(str(MessagingResponse()), mimetype="application/xml")
 
 if __name__ == "__main__":
