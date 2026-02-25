@@ -554,10 +554,13 @@ def bot():
     numero_remetente = request.values.get('From', '')
     numero_bot = request.values.get('To', '')
 
-    # --- LÓGICA DE ESTADO ---
+# --- LÓGICA DE ESTADO ---
     estado_cliente = db.get(f"estado:{numero_remetente}")
+    
+    # Verifica se é bytes antes de decodificar
+    estado_texto = estado_cliente.decode('utf-8') if isinstance(estado_cliente, bytes) else estado_cliente
 
-    if estado_cliente and estado_cliente.decode() == "finalizado":
+    if estado_texto and estado_texto == "finalizado":
         if msg_recebida.lower() in ["sim", "ok", "valeu", "obrigado", "blz"]:
             if client_twilio:
                 client_twilio.messages.create(
