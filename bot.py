@@ -511,7 +511,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
 
         chat_completion = client_groq.chat.completions.create(
             messages=mensagens_para_enviar,
-            model="llama-3.1-8b-instant", # Modelo rápido
+            model="llama-3.3-70b-versatile", # Modelo rápido -> llama-3.1-8b-instant   Modelo aprimorado -> llama-3.3-70b-versatile
             temperature=0.3, # Temperatura baixa para ele ser mais "robô" e obedecer regras
         )
         
