@@ -376,18 +376,18 @@ ETAPA 6 — PAGAMENTO
 Você DEVE mostrar os itens e o total antes de perguntar a forma de pagamento.
 
 Perguntar EXATAMENTE:
-
 "Chefia, seu pedido ficou assim:
-[Listar itens e preços individuais]
+[Listar itens]
 Entrega: R$ 7,00
 Total: R$ XX,XX
 
 Vai pagar com Pix, Cartão ou Dinheiro? (Se for dinheiro, já avise a nota para o troco)."
 
-🚨 REGRAS DO PAGAMENTO EM DINHEIRO (MUITO IMPORTANTE):
-1. Se o cliente disser APENAS "dinheiro" e NÃO informar o valor da nota, pergunte OBRIGATORIAMENTE: "Vai precisar de troco para qual valor, chefia?" e ESPERE a resposta.
-2. Se o cliente informar um valor MENOR que o total do pedido, responda: "Chefia, o total deu R$ [Total correto]. Precisa ser uma nota maior."
-3. Só avance para a Etapa 7 quando o cliente informar um valor igual ou maior que o total.
+🚨 REGRAS MATEMÁTICAS DO DINHEIRO:
+1. Se o cliente disser que vai pagar em dinheiro, VERIFIQUE O NÚMERO DA NOTA. (Ex: "100" é MAIOR que "71").
+2. Se a nota for MAIOR ou IGUAL ao Total, o pagamento está correto. Vá IMEDIATAMENTE para a ETAPA 7.
+3. SOMENTE se o número da nota for INFERIOR ao Total, responda: "Chefia, o total deu R$ [Total correto]. Precisa ser uma nota maior."
+4. Se ele falar "dinheiro" e não der número nenhum, pergunte qual é a nota para o troco.
 
 
 ━━━━━━━━━━━━━━━━━━
@@ -500,14 +500,6 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         historico_curto = historico_atualizado[-6:] 
         
         mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_curto
-        
-        # Verifica se é uma confirmação de pedido para forçar o JSON
-        palavras_confirmacao = ["sim", "pode", "tá bom", "ok", "pode mandar", "tudo certo", "confirmo"]
-        if any(p in mensagem_usuario.lower() for p in palavras_confirmacao):
-            # Adiciona uma mensagem de sistema "falsa" no final para obrigar o bot a gerar o JSON
-            mensagens_para_enviar.append({
-                "role": "system", 
-                "content": "O cliente confirmou o pedido. PRIMEIRO mande uma mensagem curta avisando que o pedido já vai para a cozinha. DEPOIS, pule uma linha e GERE O BLOCO [JSON_PEDIDO]."            })
 
         chat_completion = client_groq.chat.completions.create(
             messages=mensagens_para_enviar,
