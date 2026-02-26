@@ -504,7 +504,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         
         # ✂️ TRUQUE ANTIFALHA: Pegar apenas as últimas 6 mensagens do histórico!
         # Isso evita estourar os 6.000 tokens da conta grátis do Groq
-        historico_curto = historico_atualizado[-20:] 
+        historico_curto = historico_atualizado[-15:] 
         
         mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_curto
 
@@ -521,15 +521,20 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
 
     except Exception as e:
         print("ERRO GROQ (Tentando Backup 8B):", e)
-        # Se o 70B falhar por limite de tokens, o 8B assume na hora para o cliente não ficar no vácuo
-        chat_completion = client_groq.chat.completions.create(
-            messages=mensagens_para_enviar,
-            model="llama-3.1-8b-instant", 
-            temperature=0.1,
-        )
-        resposta_ia = chat_completion.choices[0].message.content
-        gerenciar_memoria(numero_telefone, resposta_ia, "assistant")
-        return resposta_ia
+        try:
+            # Tenta o modelo 8B se o 70B estourar a cota
+            chat_completion = client_groq.chat.completions.create(
+                messages=mensagens_para_enviar,
+                model="llama-3.1-8b-instant", 
+                temperature=0.3,
+            )
+            resposta_ia = chat_completion.choices[0].message.content
+            gerenciar_memoria(numero_telefone, resposta_ia, "assistant")
+            return resposta_ia
+        except Exception as erro_backup:
+            print("ERRO TOTAL NA API:", erro_backup)
+            # Se até o 8B falhar, manda um aviso em vez de ficar mudo
+            return "Chefia, a chapa tá muito quente aqui agora! 🍔🔥 Tivemos um pequeno pico no sistema. Pode me mandar a última mensagem de novo, por favor?"
 
 def salvar_no_sheets(dados, numero):
     try:
