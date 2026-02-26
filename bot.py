@@ -383,11 +383,11 @@ Total: R$ XX,XX
 
 Vai pagar com Pix, Cartão ou Dinheiro? (Se for dinheiro, já avise a nota para o troco)."
 
-🚨 REGRAS MATEMÁTICAS DO DINHEIRO:
-1. Se o cliente disser que vai pagar em dinheiro, VERIFIQUE O NÚMERO DA NOTA. (Ex: "100" é MAIOR que "71").
-2. Se a nota for MAIOR ou IGUAL ao Total, o pagamento está correto. Vá IMEDIATAMENTE para a ETAPA 7.
-3. SOMENTE se o número da nota for INFERIOR ao Total, responda: "Chefia, o total deu R$ [Total correto]. Precisa ser uma nota maior."
-4. Se ele falar "dinheiro" e não der número nenhum, pergunte qual é a nota para o troco.
+🚨 REGRA DO TROCO (MUITO IMPORTANTE):
+- Extraia o número da nota que o cliente informou.
+- Se o número da nota (Ex: 50, 100) for MAIOR que o valor total do pedido, ACEITE o pagamento imediatamente e vá para a ETAPA 7.
+- SOMENTE dê bronca se o número for fisicamente MENOR que o total. (Exemplo de erro: Total é R$ 40 e cliente manda nota de R$ 20).
+- JAMAIS diga que a nota precisa ser maior se o cliente mandar 50 ou 100 para um pedido de 29.
 
 
 ━━━━━━━━━━━━━━━━━━
@@ -497,7 +497,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         
         # ✂️ TRUQUE ANTIFALHA: Pegar apenas as últimas 6 mensagens do histórico!
         # Isso evita estourar os 6.000 tokens da conta grátis do Groq
-        historico_curto = historico_atualizado[-6:] 
+        historico_curto = historico_atualizado[-20:] 
         
         mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_curto
 
