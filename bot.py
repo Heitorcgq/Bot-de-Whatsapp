@@ -416,12 +416,12 @@ APENAS DEPOIS que o cliente confirmar o resumo da Etapa 7 dizendo "sim", "ok" ou
 
 Gere o JSON EXATAMENTE neste formato:
 [JSON_PEDIDO]
-{
+{{
   "pedido": "1x Lanche, 1x Refri",
   "endereco": "Rua Exemplo, 123",
   "pagamento": "Dinheiro - Troco para 100",
   "total": "R$ 41,00"
-}
+}}
 [/JSON_PEDIDO]
 
 Nunca escrever nada após [/JSON_PEDIDO].
