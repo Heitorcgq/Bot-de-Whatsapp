@@ -599,7 +599,7 @@ def bot():
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
 
     # --- PROCESSAMENTO DO JSON INTELIGENTE ---
-    if "{" in resposta and "}" in resposta:  # Se tiver chaves, tem JSON escondido
+    if "[JSON_PEDIDO]" in resposta or ("{" in resposta and "}" in resposta):  # Se tiver a tag ou chaves, tenta ler
         try:
             # 1. Pega qualquer coisa que se pareça com um JSON no meio do texto
             match = re.search(r'(\{.*?\})', resposta, re.DOTALL)
@@ -648,8 +648,7 @@ def bot():
             print(f"🕵️ Resposta crua da IA: {resposta}", flush=True)
 
     # --- ENVIO FINAL ---
-    print(f"🤖 Bot para {numero_remetente}: {resposta[:50]}...")
-
+    print(f"🤖 Bot para {numero_remetente}:\n{resposta}\n", flush=True)
     if client_twilio:
         try:
             client_twilio.messages.create(
