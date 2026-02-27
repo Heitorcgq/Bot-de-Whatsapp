@@ -5,7 +5,7 @@ import re
 import gspread
 from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
-from flask import Flask, request, Response
+from flask import Flask, request, Response, render_template
 from groq import Groq
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
@@ -604,15 +604,30 @@ def bot():
             texto_json = re.search(r'\[JSON_PEDIDO\](.*?)\[/JSON_PEDIDO\]', resposta, re.DOTALL).group(1)
             dados_pedido = json.loads(texto_json.strip())
             
-            # Tenta salvar usando a função auxiliar
+            # --- NOVO: SALVAR NO REDIS PARA O PAINEL DE ADMIN ---
+            import random
+            novo_pedido_painel = {
+                "id": random.randint(1000, 9999), # Gera um número de pedido
+                "nome": dados_pedido.get("nome", "Não informado"),
+                "itens": dados_pedido.get("pedido", ""),
+                "endereco": dados_pedido.get("endereco", ""),
+                "pagamento": dados_pedido.get("pagamento", ""),
+                "total": dados_pedido.get("total", ""),
+                "numero_cliente": numero_remetente,
+                "status": "pendente"
+            }
+            # Adiciona o pedido na lista 'pedidos_painel' do Redis
+            db.lpush("pedidos_painel", json.dumps(novo_pedido_painel))
+            # ----------------------------------------------------
+
+            # Tenta salvar usando a função auxiliar (Google Sheets)
             sucesso_sheets = salvar_no_sheets(dados_pedido, numero_remetente)
             
             if sucesso_sheets:
                 print("✅ Pedido salvo no Google Sheets!")
-                # Só define como finalizado se salvou com sucesso
                 db.set(f"estado:{numero_remetente}", "finalizado", ex=3600)
             else:
-                print("❌ FALHA AO SALVAR NA PLANILHA (O pedido existe no chat, mas não no sheets)")
+                print("❌ FALHA AO SALVAR NA PLANILHA")
 
             # Limpa o JSON da resposta para o usuário
             resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
@@ -643,6 +658,25 @@ def bot():
 
     return Response(str(MessagingResponse()), mimetype="application/xml")
 
+# --- ROTA DO PAINEL DE ADMINISTRAÇÃO ---
+@app.route("/admin")
+def painel_admin():
+    # Busca todos os pedidos salvos na lista 'pedidos_painel' do Redis
+    pedidos_crus = db.lrange("pedidos_painel", 0, -1)
+    
+    # X-9: Vai imprimir no seu terminal preto quantos pedidos achou!
+    print(f"🚨 DEBUG PAINEL: Encontrei {len(pedidos_crus)} pedidos no Redis!")
+    
+    # Transforma o texto do banco de volta em dicionários do Python
+    pedidos_reais = []
+    for p in pedidos_crus:
+        pedidos_reais.append(json.loads(p))
+    
+    # Envia os pedidos reais para a tela HTML
+    return render_template("painel.html", pedidos=pedidos_reais)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
+
