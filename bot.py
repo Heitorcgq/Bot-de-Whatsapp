@@ -504,7 +504,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         
         # ✂️ TRUQUE ANTIFALHA: Pegar apenas as últimas 6 mensagens do histórico!
         # Isso evita estourar os 6.000 tokens da conta grátis do Groq
-        historico_curto = historico_atualizado[-15:] 
+        historico_curto = historico_atualizado[-20:] 
         
         mensagens_para_enviar = [{"role": "system", "content": prompt_sistema}] + historico_curto
 
@@ -598,52 +598,54 @@ def bot():
     # --- CHAMADA IA ---
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
 
-    # --- PROCESSAMENTO DO JSON ---
-    if "[JSON_PEDIDO]" in resposta or "```json" in resposta.lower() or '{"nome"' in resposta.lower():
+    # --- PROCESSAMENTO DO JSON INTELIGENTE ---
+    if "{" in resposta and "}" in resposta:  # Se tiver chaves, tem JSON escondido
         try:
-            # 1. Tenta extrair o JSON de várias formas possíveis que a IA possa ter gerado
-            if "[JSON_PEDIDO]" in resposta:
-                texto_json = re.search(r'\[JSON_PEDIDO\](.*?)\[/JSON_PEDIDO\]', resposta, re.DOTALL).group(1)
-            elif "```json" in resposta.lower():
-                texto_json = re.search(r'```json(.*?)```', resposta, re.DOTALL | re.IGNORECASE).group(1)
-            else:
-                texto_json = re.search(r'(\{.*?\})', resposta, re.DOTALL).group(1)
+            # 1. Pega qualquer coisa que se pareça com um JSON no meio do texto
+            match = re.search(r'(\{.*?\})', resposta, re.DOTALL)
+            
+            if match:
+                texto_json = match.group(1)
+                dados_pedido = json.loads(texto_json.strip())
                 
-            dados_pedido = json.loads(texto_json.strip())
-            
-            # 2. SALVAR NO REDIS (PAINEL DE ADMIN) PRIMEIRO!
-            import random
-            novo_pedido_painel = {
-                "id": random.randint(1000, 9999),
-                "nome": dados_pedido.get("nome", "Não informado"),
-                "itens": dados_pedido.get("pedido", ""),
-                "endereco": dados_pedido.get("endereco", ""),
-                "pagamento": dados_pedido.get("pagamento", ""),
-                "total": dados_pedido.get("total", ""),
-                "numero_cliente": numero_remetente,
-                "status": "pendente"
-            }
-            db.lpush("pedidos_painel", json.dumps(novo_pedido_painel))
-            print("✅ Pedido salvo no Painel com sucesso!")
-            
-            # 3. Tenta salvar na Planilha (Se falhar, não tem problema, já está no Painel)
-            sucesso_sheets = salvar_no_sheets(dados_pedido, numero_remetente)
-            if sucesso_sheets:
-                print("✅ Pedido salvo no Google Sheets!")
-            else:
-                print("⚠️ Falha na planilha, mas pedido está seguro no Painel.")
-
-            # 4. OBRIGATÓRIO: Libera a IA para novos pedidos
-            db.set(f"estado:{numero_remetente}", "finalizado", ex=3600)
-
-            # 5. Limpa a resposta para o WhatsApp (esconde os códigos do cliente)
-            resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL)
-            resposta = re.sub(r'```json.*?```', '', resposta, flags=re.DOTALL | re.IGNORECASE)
-            resposta = resposta.strip()
-
+                # 2. Confirma se o JSON tem os dados do pedido e não é apenas texto aleatório
+                if "pedido" in dados_pedido or "total" in dados_pedido:
+                    import random
+                    novo_pedido_painel = {
+                        "id": random.randint(1000, 9999),
+                        "nome": dados_pedido.get("nome", "Não informado"),
+                        "itens": dados_pedido.get("pedido", dados_pedido.get("itens", "")),
+                        "endereco": dados_pedido.get("endereco", ""),
+                        "pagamento": dados_pedido.get("pagamento", ""),
+                        "total": dados_pedido.get("total", ""),
+                        "numero_cliente": numero_remetente,
+                        "status": "pendente"
+                    }
+                    
+                    # 3. Salva no Painel primeiro (Prioridade Máxima)
+                    db.lpush("pedidos_painel", json.dumps(novo_pedido_painel))
+                    print("✅ Pedido salvo no Painel!")
+                    
+                    # 4. Tenta salvar na Planilha em segundo plano
+                    salvar_no_sheets(dados_pedido, numero_remetente)
+                    
+                    # 5. Trava a memória para o cliente não bugar o bot
+                    db.set(f"estado:{numero_remetente}", "finalizado", ex=3600)
+                    
+                    # 6. Limpa todas as tags de código da resposta para enviar ao cliente
+                    resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL)
+                    resposta = re.sub(r'```json.*?```', '', resposta, flags=re.DOTALL | re.IGNORECASE)
+                    resposta = re.sub(r'\{.*?\}', '', resposta, flags=re.DOTALL)
+                    resposta = resposta.strip()
+                    
+                    # Se a IA apagou tudo e não sobrou texto de despedida
+                    if not resposta:
+                        resposta = "Fechado, chefia! O seu pedido já vai ser preparado. 🍔🔥"
+                        
         except Exception as e:
-            # flush=True força o erro a aparecer na hora no log do Render
-            print("❌ Erro crítico no processamento do JSON:", e, flush=True)
+            # flush=True obriga o Render a mostrar o erro na hora na aba "Logs"
+            print(f"❌ Erro crítico ao ler JSON: {e}", flush=True)
+            print(f"🕵️ Resposta crua da IA: {resposta}", flush=True)
 
     # --- ENVIO FINAL ---
     print(f"🤖 Bot para {numero_remetente}: {resposta[:50]}...")
