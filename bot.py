@@ -510,7 +510,7 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
 
         chat_completion = client_groq.chat.completions.create(
             messages=mensagens_para_enviar,
-            model="llama-3.3-70b-versatile", # Modelo rápido -> llama-3.1-8b-instant   Modelo aprimorado -> llama-3.3-70b-versatile
+            model="llama-3.1-8b-instant", # Modelo rápido -> llama-3.1-8b-instant   Modelo aprimorado -> llama-3.3-70b-versatile
             temperature=0.3, # Temperatura baixa para ele ser mais "robô" e obedecer regras
         )
         
@@ -520,12 +520,12 @@ def obter_resposta_ia(mensagem_usuario, numero_telefone):
         return resposta_ia
 
     except Exception as e:
-        print("ERRO GROQ (Tentando Backup 8B):", e)
+        print("ERRO GROQ (Tentando Backup de Model):", e)
         try:
             # Tenta o modelo 8B se o 70B estourar a cota
             chat_completion = client_groq.chat.completions.create(
                 messages=mensagens_para_enviar,
-                model="llama-3.1-8b-instant", 
+                model="llama-3.3-70b-versatile", 
                 temperature=0.3,
             )
             resposta_ia = chat_completion.choices[0].message.content
