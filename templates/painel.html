@@ -2,44 +2,139 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel da Cozinha - Rei do Smash</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f6f9; }
+        .card { border: none; border-radius: 12px; }
+        .table-hover tbody tr:hover { background-color: #f1f3f5; }
+        .btn { border-radius: 8px; }
+    </style>
 </head>
-<body class="bg-light">
-    <div class="container mt-5">
-        <h2 class="mb-4">🍔 Pedidos em Tempo Real</h2>
+<body>
+
+    <nav class="navbar navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">
+                🍔 Chef Burger SaaS <span class="badge bg-danger ms-2">Rei do Smash</span>
+            </a>
+            <span class="navbar-text text-white">
+                <i class="bi bi-clock"></i> Atualizado em tempo real
+            </span>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
         
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <div class="card bg-success text-white shadow-sm h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="fs-1 me-4"><i class="bi bi-cash-coin"></i></div>
+                        <div>
+                            <h6 class="card-title text-uppercase mb-1" style="letter-spacing: 1px;">Faturamento do Dia</h6>
+                            <h2 class="card-text fw-bold mb-0">{{ faturacao }}</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-primary text-white shadow-sm h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="fs-1 me-4"><i class="bi bi-box-seam"></i></div>
+                        <div>
+                            <h6 class="card-title text-uppercase mb-1" style="letter-spacing: 1px;">Pedidos Entregues</h6>
+                            <h2 class="card-text fw-bold mb-0">{{ qtd_vendas }} <small class="fs-6 fw-normal">pedido(s)</small></h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card shadow-sm">
-            <div class="card-body">
-                <table class="table table-hover">
-                    <thead class="table-dark">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-list-task me-2 text-primary"></i>Fila da Cozinha</h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Atualizar
+                </button>
+            </div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
                         <tr>
-                            <th>Nº</th>
+                            <th class="ps-4">Nº</th>
                             <th>Cliente</th>
                             <th>Pedido</th>
                             <th>Total</th>
                             <th>Pagamento</th>
-                            <th>Ação</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Ação</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for pedido in pedidos %}
-                        <tr>
-                            <td>#{{ pedido.id }}</td>
-                            <td><strong>{{ pedido.nome }}</strong></td>
+                        <tr class="{% if pedido.status == 'finalizado' %}table-light text-muted opacity-75{% endif %}">
+                            <td class="ps-4"><strong>#{{ pedido.id }}</strong></td>
+                            <td><i class="bi bi-person-circle me-1 text-secondary"></i> <strong>{{ pedido.nome }}</strong></td>
                             <td>{{ pedido.itens }}</td>
-                            <td>{{ pedido.total }}</td>
-                            <td>{{ pedido.pagamento }}</td>
+                            <td class="fw-bold text-success">{{ pedido.total }}</td>
+                            <td><i class="bi bi-wallet2 me-1"></i> {{ pedido.pagamento }}</td>
+                            
                             <td>
-                                <button class="btn btn-warning btn-sm">Imprimir</button>
-                                <button class="btn btn-success btn-sm">Finalizar</button>
+                                {% if pedido.status == 'pendente' %}
+                                    <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> Pendente</span>
+                                {% else %}
+                                    <span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Finalizado</span>
+                                {% endif %}
+                            </td>
+                            
+                            <td class="text-end pe-4">
+                                <button class="btn btn-outline-dark btn-sm me-1" title="Imprimir Cupom">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+                                
+                                {% if pedido.status == 'pendente' %}
+                                    <button class="btn btn-success btn-sm" onclick="finalizar_pedido_js('{{ pedido.id }}')" title="Marcar como entregue">
+                                        <i class="bi bi-check-lg"></i> Finalizar
+                                    </button>
+                                {% else %}
+                                    <button class="btn btn-secondary btn-sm disabled">
+                                        Entregue
+                                    </button>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
+                        
+                        {% if not pedidos %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-emoji-sunglasses fs-1 d-block mb-2"></i>
+                                Nenhum pedido na fila no momento.
+                            </td>
+                        </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+
+    <script>
+    function finalizar_pedido_js(id) {
+        if(confirm("Deseja marcar o pedido #" + id + " como entregue e avisar o cliente no WhatsApp?")) {
+            fetch('/finalizar/' + id, { method: 'POST' })
+            .then(response => {
+                if(response.ok) {
+                    location.reload(); 
+                } else {
+                    alert("Erro ao finalizar pedido. Verifique a conexão.");
+                }
+            });
+        }
+    }
+    </script>
 </body>
 </html>

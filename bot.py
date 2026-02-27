@@ -658,22 +658,63 @@ def bot():
 
     return Response(str(MessagingResponse()), mimetype="application/xml")
 
+@app.route("/finalizar/<int:pedido_id>", methods=['POST'])
+def finalizar_pedido(pedido_id):
+    # 1. Buscar todos os pedidos no Redis
+    pedidos_crus = db.lrange("pedidos_painel", 0, -1)
+    
+    for p_json in pedidos_crus:
+        p = json.loads(p_json)
+        if p['id'] == pedido_id:
+            # Trava para não finalizar duas vezes sem querer
+            if p.get('status') == 'finalizado':
+                break
+                
+            # 2. Enviar mensagem de saída para o cliente via Twilio
+            if client_twilio:
+                try:
+                    client_twilio.messages.create(
+                        body=f"Boa notícia, {p['nome']}! 🛵🔥 Seu pedido acabou de sair para entrega e logo chegará até você. Bom apetite!",
+                        from_=os.getenv("TWILIO_WHATSAPP_NUMBER"), 
+                        to=p['numero_cliente']
+                    )
+                except Exception as e:
+                    print(f"Erro ao avisar cliente: {e}")
+
+            # 3. Atualizar o status do pedido de pendente para finalizado
+            db.lrem("pedidos_painel", 1, p_json) # Remove a versão velha
+            p['status'] = 'finalizado' # Muda o status
+            db.lpush("pedidos_painel", json.dumps(p)) # Salva a versão atualizada
+            break
+            
+    return Response(status=200)
+
 # --- ROTA DO PAINEL DE ADMINISTRAÇÃO ---
 @app.route("/admin")
 def painel_admin():
-    # Busca todos os pedidos salvos na lista 'pedidos_painel' do Redis
     pedidos_crus = db.lrange("pedidos_painel", 0, -1)
     
-    # X-9: Vai imprimir no seu terminal preto quantos pedidos achou!
-    print(f"🚨 DEBUG PAINEL: Encontrei {len(pedidos_crus)} pedidos no Redis!")
-    
-    # Transforma o texto do banco de volta em dicionários do Python
     pedidos_reais = []
-    for p in pedidos_crus:
-        pedidos_reais.append(json.loads(p))
+    faturacao_total = 0.0
+    qtd_vendas = 0
     
-    # Envia os pedidos reais para a tela HTML
-    return render_template("painel.html", pedidos=pedidos_reais)
+    for p_json in pedidos_crus:
+        p = json.loads(p_json)
+        pedidos_reais.append(p)
+        
+        # O Caixa só soma os pedidos que já foram Entregues/Finalizados
+        if p.get('status') == 'finalizado':
+            qtd_vendas += 1
+            valor_limpo = p.get("total", "0").replace("R$", "").replace(".", "").replace(",", ".").strip()
+            try:
+                faturacao_total += float(valor_limpo)
+            except:
+                pass
+
+    faturacao_formatada = f"R$ {faturacao_total:.2f}".replace(".", ",")
+    
+    # Envia para o HTML
+    return render_template("painel.html", pedidos=pedidos_reais, faturacao=faturacao_formatada, qtd_vendas=qtd_vendas)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
