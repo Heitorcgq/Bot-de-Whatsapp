@@ -599,15 +599,22 @@ def bot():
     resposta = obter_resposta_ia(msg_recebida, numero_remetente)
 
     # --- PROCESSAMENTO DO JSON ---
-    if "[JSON_PEDIDO]" in resposta:
+    if "[JSON_PEDIDO]" in resposta or "```json" in resposta.lower() or '{"nome"' in resposta.lower():
         try:
-            texto_json = re.search(r'\[JSON_PEDIDO\](.*?)\[/JSON_PEDIDO\]', resposta, re.DOTALL).group(1)
+            # 1. Tenta extrair o JSON de várias formas possíveis que a IA possa ter gerado
+            if "[JSON_PEDIDO]" in resposta:
+                texto_json = re.search(r'\[JSON_PEDIDO\](.*?)\[/JSON_PEDIDO\]', resposta, re.DOTALL).group(1)
+            elif "```json" in resposta.lower():
+                texto_json = re.search(r'```json(.*?)```', resposta, re.DOTALL | re.IGNORECASE).group(1)
+            else:
+                texto_json = re.search(r'(\{.*?\})', resposta, re.DOTALL).group(1)
+                
             dados_pedido = json.loads(texto_json.strip())
             
-            # --- NOVO: SALVAR NO REDIS PARA O PAINEL DE ADMIN ---
+            # 2. SALVAR NO REDIS (PAINEL DE ADMIN) PRIMEIRO!
             import random
             novo_pedido_painel = {
-                "id": random.randint(1000, 9999), # Gera um número de pedido
+                "id": random.randint(1000, 9999),
                 "nome": dados_pedido.get("nome", "Não informado"),
                 "itens": dados_pedido.get("pedido", ""),
                 "endereco": dados_pedido.get("endereco", ""),
@@ -616,24 +623,27 @@ def bot():
                 "numero_cliente": numero_remetente,
                 "status": "pendente"
             }
-            # Adiciona o pedido na lista 'pedidos_painel' do Redis
             db.lpush("pedidos_painel", json.dumps(novo_pedido_painel))
-            # ----------------------------------------------------
-
-            # Tenta salvar usando a função auxiliar (Google Sheets)
-            sucesso_sheets = salvar_no_sheets(dados_pedido, numero_remetente)
+            print("✅ Pedido salvo no Painel com sucesso!")
             
+            # 3. Tenta salvar na Planilha (Se falhar, não tem problema, já está no Painel)
+            sucesso_sheets = salvar_no_sheets(dados_pedido, numero_remetente)
             if sucesso_sheets:
                 print("✅ Pedido salvo no Google Sheets!")
-                db.set(f"estado:{numero_remetente}", "finalizado", ex=3600)
             else:
-                print("❌ FALHA AO SALVAR NA PLANILHA")
+                print("⚠️ Falha na planilha, mas pedido está seguro no Painel.")
 
-            # Limpa o JSON da resposta para o usuário
-            resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL).strip()
+            # 4. OBRIGATÓRIO: Libera a IA para novos pedidos
+            db.set(f"estado:{numero_remetente}", "finalizado", ex=3600)
+
+            # 5. Limpa a resposta para o WhatsApp (esconde os códigos do cliente)
+            resposta = re.sub(r'\[JSON_PEDIDO\].*?\[/JSON_PEDIDO\]', '', resposta, flags=re.DOTALL)
+            resposta = re.sub(r'```json.*?```', '', resposta, flags=re.DOTALL | re.IGNORECASE)
+            resposta = resposta.strip()
 
         except Exception as e:
-            print("❌ Erro crítico no processamento do JSON:", e)
+            # flush=True força o erro a aparecer na hora no log do Render
+            print("❌ Erro crítico no processamento do JSON:", e, flush=True)
 
     # --- ENVIO FINAL ---
     print(f"🤖 Bot para {numero_remetente}: {resposta[:50]}...")
